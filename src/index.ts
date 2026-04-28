@@ -97,7 +97,7 @@ async function loginIfCredentialsProvided(page: Page) {
 
   const submitButton = page
     .locator(
-      'button#submit-button, button[data-test-id="login-submit"], button[type="submit"], button:has-text("Entrar"), button:has-text("Login")'
+      '#text-btn-login, button#submit-button, button[data-test-id="login-submit"], button:has-text("Entrar"), button:has-text("Login"), button[type="submit"]'
     )
     .first();
 

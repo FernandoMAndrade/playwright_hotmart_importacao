@@ -1,6 +1,27 @@
 import { BrowserContext } from 'playwright';
 import fs from 'fs';
 
+function parseNetscapeCookieLine(line: string) {
+  const isHttpOnly = line.startsWith('#HttpOnly_');
+  const normalizedLine = isHttpOnly ? line.replace('#HttpOnly_', '') : line;
+  const parts = normalizedLine.split('\t');
+
+  if (parts.length < 7) return null;
+
+  const [domain, , path, secure, expires, name, ...valueParts] = parts;
+  const value = valueParts.join('\t');
+
+  return {
+    name,
+    value,
+    domain,
+    path: path || '/',
+    secure: secure === 'TRUE',
+    httpOnly: isHttpOnly,
+    expires: Number.parseInt(expires, 10) === 0 ? -1 : Number.parseInt(expires, 10)
+  };
+}
+
 export async function loadCookiesFromNetscape(
   context: BrowserContext,
   cookiesPath: string
@@ -10,24 +31,19 @@ export async function loadCookiesFromNetscape(
   }
 
   const content = fs.readFileSync(cookiesPath, 'utf-8');
-  const lines = content.split('\n');
-  const cookies: any[] = [];
+  const lines = content.split(/\r?\n/);
 
-  for (const line of lines) {
-    if (line.startsWith('#') || !line.trim()) continue;
-    const parts = line.split('\t');
-    if (parts.length >= 7) {
-      const [domain, flag, path, secure, expires, name, value] = parts;
-      cookies.push({
-        name,
-        value,
-        domain: domain.startsWith('.') ? domain : domain,
-        path: path || '/',
-        secure: secure === 'TRUE',
-        httpOnly: flag === 'TRUE',
-        expires: parseInt(expires) === 0 ? -1 : parseInt(expires)
-      });
-    }
+  const cookies = lines
+    .filter((line) => line.trim() && (!line.startsWith('#') || line.startsWith('#HttpOnly_')))
+    .map((line) => parseNetscapeCookieLine(line.trim()))
+    .filter((cookie): cookie is NonNullable<ReturnType<typeof parseNetscapeCookieLine>> =>
+      Boolean(cookie)
+    );
+
+  if (cookies.length === 0) {
+    throw new Error(
+      `No valid cookies were parsed from ${cookiesPath}. Confirm it is in Netscape format.`
+    );
   }
 
   await context.addCookies(cookies);

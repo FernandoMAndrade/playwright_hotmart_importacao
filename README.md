@@ -41,6 +41,14 @@ npx playwright install chromium
 npm start
 ```
 
+### Optional: login with credentials
+
+If cookies are expired, you can pass credentials as environment variables so Playwright fills the SSO login form:
+
+```bash
+HOTMART_EMAIL="your-email" HOTMART_PASSWORD="your-password" npm start
+```
+
 ## Output
 
 - `data/videos.json`: full metadata including M3U8 URLs.
@@ -59,6 +67,7 @@ download.bat    # Windows
 ## How it works
 
 - Loads cookies for authentication.
+- Opens the Hotmart SSO login URL first (helps refresh session when cookies are stale).
 - Navigates to course page.
 - Expands all modules.
 - Scans for video lessons.

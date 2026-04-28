@@ -49,6 +49,17 @@ If cookies are expired, you can pass credentials as environment variables so Pla
 HOTMART_EMAIL="your-email" HOTMART_PASSWORD="your-password" npm start
 ```
 
+## Login and navigation flow
+
+The automation now follows this sequence before scanning lessons:
+
+1. Opens SSO login URL (`passwordless=false`) at `sso.hotmart.com`.
+2. Fills `#username`, `#password` and submits `#submit-button` when credentials are provided.
+3. Ensures Club landing page opens: `https://hotmart.com/pt-br/club/formacao-do-zero-a-importador`.
+4. Opens the first module URL:
+   `https://hotmart.com/pt-BR/club/formacao-do-zero-a-importador/products/2220574/content/2OME3KxxO6`.
+5. Opens full content listing and starts extraction.
+
 ## Output
 
 - `data/videos.json`: full metadata including M3U8 URLs.
@@ -68,7 +79,7 @@ download.bat    # Windows
 
 - Loads cookies for authentication.
 - Opens the Hotmart SSO login URL first (helps refresh session when cookies are stale).
-- Navigates to course page.
+- Navigates landing page + first module + full content area.
 - Expands all modules.
 - Scans for video lessons.
 - For each video, intercepts the `.m3u8` request.

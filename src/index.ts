@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { chromium, Page } from 'playwright';
 import fs from 'fs';
 import path from 'path';
 import { loadCookiesFromNetscape } from './cookieLoader';
@@ -8,6 +8,10 @@ import { VideoData } from './types';
 const COOKIES_FILE = './cookies.txt';
 const COURSE_URL =
   'https://app.hotmart.com/pt-BR/club/formacao-do-zero-a-importador/products/2220574/content';
+const LOGIN_URL =
+  'https://sso.hotmart.com/login?service=https%3A%2F%2Fsso.hotmart.com%2Foauth2.0%2FcallbackAuthorize%3Fclient_id%3D8cef361b-94f8-4679-bd92-9d1cb496452d%26scope%3Dopenid%2Bprofile%2Bauthorities%2Bemail%2Buser%2Baddress%26redirect_uri%3Dhttps%253A%252F%252Fapp.hotmart.com%252Fauth%252Flogin%26response_type%3Dcode%26response_mode%3Dquery%26state%3D7e8c2425753844aebe17d881bbff03fc%26client_name%3DCasOAuthClient';
+const HOTMART_EMAIL = process.env.HOTMART_EMAIL || '';
+const HOTMART_PASSWORD = process.env.HOTMART_PASSWORD || '';
 const DATA_DIR = './data';
 
 async function ensureDir(dir: string) {
@@ -56,6 +60,55 @@ echo "✅ All downloads complete!"
   console.log(`📜 Download scripts generated in ${DATA_DIR}`);
 }
 
+async function loginIfCredentialsProvided(page: Page) {
+  if (!HOTMART_EMAIL || !HOTMART_PASSWORD) {
+    console.log(
+      'ℹ️ HOTMART_EMAIL/HOTMART_PASSWORD not provided. Proceeding with cookies or manual login.'
+    );
+    return;
+  }
+
+  const emailInput = page
+    .locator('input#username, input[name="username"], input[type="email"], input[name="email"]')
+    .first();
+  const passwordInput = page
+    .locator('input#password, input[type="password"], input[name="password"]')
+    .first();
+
+  if (!(await emailInput.isVisible().catch(() => false))) {
+    console.log('ℹ️ Login form not detected on current page.');
+    return;
+  }
+
+  console.log('🔑 Filling Hotmart login credentials...');
+  await emailInput.fill(HOTMART_EMAIL);
+
+  const usePasswordButton = page.locator('button#signin-password').first();
+  if (await usePasswordButton.isVisible().catch(() => false)) {
+    console.log('➡️ Switching from passwordless to password login...');
+    await usePasswordButton.click();
+    await page.waitForTimeout(1500);
+  }
+
+  if (!(await passwordInput.isVisible().catch(() => false))) {
+    await page.waitForSelector('input#password, input[type="password"]', { timeout: 10000 });
+  }
+  await passwordInput.fill(HOTMART_PASSWORD);
+
+  const submitButton = page
+    .locator(
+      'button#submit-button, button[data-test-id="login-submit"], button[type="submit"], button:has-text("Entrar"), button:has-text("Login")'
+    )
+    .first();
+
+  await Promise.all([
+    page.waitForLoadState('networkidle').catch(() => null),
+    submitButton.click().catch(() => null)
+  ]);
+
+  await page.waitForTimeout(4000);
+}
+
 async function main() {
   console.log('🚀 Hotmart M3U8 Extractor');
   console.log('========================\n');
@@ -79,6 +132,11 @@ async function main() {
   await loadCookiesFromNetscape(context, COOKIES_FILE);
 
   const page = await context.newPage();
+
+  console.log(`🔐 Navigating to login page: ${LOGIN_URL}`);
+  await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(3000);
+  await loginIfCredentialsProvided(page);
 
   console.log(`🌐 Navigating to: ${COURSE_URL}`);
   await page.goto(COURSE_URL, { waitUntil: 'networkidle' });

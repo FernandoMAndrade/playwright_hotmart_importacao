@@ -72,7 +72,7 @@ export async function getAllLessons(page: Page): Promise<LessonInfo[]> {
         hash,
         title,
         module: moduleName,
-        url: `https://app.hotmart.com${href}`,
+        url: href.startsWith("http") ? href : `https://hotmart.com${href}`,
         duration,
         thumbnail: thumbnailUrl
       });

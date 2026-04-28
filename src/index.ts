@@ -6,10 +6,13 @@ import { expandAllModules, getAllLessons } from './courseScanner';
 import { VideoData } from './types';
 
 const COOKIES_FILE = './cookies.txt';
-const COURSE_URL =
-  'https://app.hotmart.com/pt-BR/club/formacao-do-zero-a-importador/products/2220574/content';
 const LOGIN_URL =
-  'https://sso.hotmart.com/login?service=https%3A%2F%2Fsso.hotmart.com%2Foauth2.0%2FcallbackAuthorize%3Fclient_id%3D8cef361b-94f8-4679-bd92-9d1cb496452d%26scope%3Dopenid%2Bprofile%2Bauthorities%2Bemail%2Buser%2Baddress%26redirect_uri%3Dhttps%253A%252F%252Fapp.hotmart.com%252Fauth%252Flogin%26response_type%3Dcode%26response_mode%3Dquery%26state%3D7e8c2425753844aebe17d881bbff03fc%26client_name%3DCasOAuthClient';
+  'https://sso.hotmart.com/login?passwordless=false&service=https%3A%2F%2Fsso.hotmart.com%2Foauth2.0%2FcallbackAuthorize%3Fclient_id%3Db432cdd3-eb60-46bd-892b-5b450a65153e%26scope%3Dopenid%2Bprofile%2Bauthorities%2Bemail%2Bresources%2Buser%26redirect_uri%3Dhttps%253A%252F%252Fhotmart.com%252Fpt-br%252Fclub%252Fformacao-do-zero-a-importador%252Fauth%252Flogin%253Frealm%253Dclub%26response_type%3Dcode%26response_mode%3Dquery%26state%3D8a954b9b51724350b7be894ec9676299%26client_name%3DCasOAuthClient';
+const CLUB_LANDING_URL = 'https://hotmart.com/pt-br/club/formacao-do-zero-a-importador';
+const FIRST_MODULE_URL =
+  'https://hotmart.com/pt-BR/club/formacao-do-zero-a-importador/products/2220574/content/2OME3KxxO6';
+const COURSE_CONTENT_URL =
+  'https://hotmart.com/pt-BR/club/formacao-do-zero-a-importador/products/2220574/content';
 const HOTMART_EMAIL = process.env.HOTMART_EMAIL || '';
 const HOTMART_PASSWORD = process.env.HOTMART_PASSWORD || '';
 const DATA_DIR = './data';
@@ -68,14 +71,11 @@ async function loginIfCredentialsProvided(page: Page) {
     return;
   }
 
-  const emailInput = page
-    .locator('input#username, input[name="username"], input[type="email"], input[name="email"]')
-    .first();
-  const passwordInput = page
-    .locator('input#password, input[type="password"], input[name="password"]')
-    .first();
+  const emailInput = page.locator('input#username, input[name="username"]').first();
+  const passwordInput = page.locator('input#password, input[name="password"]').first();
 
-  if (!(await emailInput.isVisible().catch(() => false))) {
+  const emailVisible = await emailInput.isVisible().catch(() => false);
+  if (!emailVisible) {
     console.log('ℹ️ Login form not detected on current page.');
     return;
   }
@@ -83,30 +83,39 @@ async function loginIfCredentialsProvided(page: Page) {
   console.log('🔑 Filling Hotmart login credentials...');
   await emailInput.fill(HOTMART_EMAIL);
 
-  const usePasswordButton = page.locator('button#signin-password').first();
-  if (await usePasswordButton.isVisible().catch(() => false)) {
-    console.log('➡️ Switching from passwordless to password login...');
-    await usePasswordButton.click();
-    await page.waitForTimeout(1500);
-  }
-
   if (!(await passwordInput.isVisible().catch(() => false))) {
-    await page.waitForSelector('input#password, input[type="password"]', { timeout: 10000 });
+    await page.waitForSelector('input#password, input[name="password"]', { timeout: 10000 });
   }
   await passwordInput.fill(HOTMART_PASSWORD);
 
   const submitButton = page
-    .locator(
-      '#text-btn-login, button#submit-button, button[data-test-id="login-submit"], button:has-text("Entrar"), button:has-text("Login"), button[type="submit"]'
-    )
+    .locator('button#submit-button, button[data-test-id="login-submit"], button[type="submit"]')
     .first();
 
   await Promise.all([
     page.waitForLoadState('networkidle').catch(() => null),
-    submitButton.click().catch(() => null)
+    submitButton.click({ timeout: 10000 }).catch(() => null)
   ]);
 
   await page.waitForTimeout(4000);
+}
+
+async function ensureOnLandingAndModule(page: Page) {
+  console.log(`🏠 Ensuring landing page opens: ${CLUB_LANDING_URL}`);
+  if (!page.url().includes('/club/formacao-do-zero-a-importador')) {
+    await page.goto(CLUB_LANDING_URL, { waitUntil: 'domcontentloaded' });
+  }
+  await page.waitForLoadState('networkidle').catch(() => null);
+  await page.waitForTimeout(2000);
+
+  console.log(`📘 Opening first module: ${FIRST_MODULE_URL}`);
+  await page.goto(FIRST_MODULE_URL, { waitUntil: 'domcontentloaded' });
+  await page.waitForLoadState('networkidle').catch(() => null);
+  await page.waitForTimeout(2000);
+
+  console.log(`🧭 Opening full content listing: ${COURSE_CONTENT_URL}`);
+  await page.goto(COURSE_CONTENT_URL, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(3000);
 }
 
 async function main() {
@@ -138,9 +147,7 @@ async function main() {
   await page.waitForTimeout(3000);
   await loginIfCredentialsProvided(page);
 
-  console.log(`🌐 Navigating to: ${COURSE_URL}`);
-  await page.goto(COURSE_URL, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(3000);
+  await ensureOnLandingAndModule(page);
 
   await expandAllModules(page);
 
@@ -189,7 +196,7 @@ async function main() {
       await page.goto(lesson.url, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(3000);
 
-      const iframe = await page.$('iframe[src*="hotmart"]');
+      const iframe = await page.$('iframe[src*="hotmart"], iframe[src*="cf-embed.play.hotmart.com"]');
       if (iframe) {
         await page.waitForTimeout(2000);
       }

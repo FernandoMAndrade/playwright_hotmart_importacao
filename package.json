@@ -1,0 +1,19 @@
+{
+  "name": "hotmart-m3u8-extractor",
+  "version": "1.0.0",
+  "description": "Extract all .m3u8 URLs from Hotmart courses using Playwright",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "ts-node src/index.ts",
+    "extract": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "playwright": "^1.46.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  }
+}
